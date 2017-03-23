@@ -1,0 +1,32 @@
+{
+  "name": "ultracreation-socket-plugin",
+  "version": "1.0.0",
+  "description": "This plugin provides client and server sockets for Android and iOS.",
+  "cordova": {
+    "id": "ultracreation-socket-plugin",
+    "platforms": [
+      "android"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/disword/ultracreation-socket-plugin.git"
+  },
+  "keywords": [
+    "chrome",
+    "socket",
+    "ecosystem:cordova",
+    "cordova-android",
+    "cordova-ios"
+  ],
+  "engines": [
+    {
+      "name": "cordova",
+      "version": ">=3.0.0"
+    }
+  ],
+  "author": "",
+  "license": "BSD",
+  
+  "homepage": "https://github.com/disword/ultracreation-socket-plugin"
+}

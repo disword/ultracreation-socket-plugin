@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Copyright (c) 2013 The Chromium Authors. All rights reserved.
+  Use of this source code is governed by a BSD-style license that can be
+  found in the LICENSE file.
+-->
+<plugin xmlns="http://cordova.apache.org/ns/plugins/1.0"
+    id="ultracreation-socket-plugin"
+    version="1.0.0">
+  <engines>
+    <engine name="cordova" version=">=3.0.0" />
+  </engines>
+
+  <name>Ultracreation Socket Plugin</name>
+  <keywords>socket</keywords>
+  <repo>https://github.com/disword/ultracreation-socket-plugin.git</repo>
+  
+  <js-module src="socket.js" name="Socket">
+    <clobbers target="socket" />
+  </js-module>
+
+  <platform name="android">
+    <source-file src="src/android/UltracreationSocket.java" target-dir="src/com/ultracreation" />
+
+    <config-file target="res/xml/config.xml" parent="/widget">
+      <feature name="Socket">
+        <param name="android-package" value="com.ultracreation.UltracreationSocket"/>
+      </feature>
+    </config-file>
+  </platform>
+</plugin>

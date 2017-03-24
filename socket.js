@@ -1,97 +1,126 @@
+cordova.define("ultracreation-socket-plugin.Socket", function(require, exports, module) {
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+var stringToBytes = function(content) {
+    var array = new Uint8Array(content.length);
+    for (var i = 0, l = content.length; i < l; i++) {
+      array[i] = content.charCodeAt(i);
+    }
+    return array.buffer;
+ };
 
 var platform = cordova.require('cordova/platform');
 var exec = cordova.require('cordova/exec');
 var network = require('cordova-plugin-chrome-apps-system-network.system.network');
 
-exports.create = function(socketMode, stuff, callback) {
-    if (typeof stuff == 'function') {
-        callback = stuff;
-        stuff = {};
-    }
+exports.socket = function(socketMode, callback) {
     var win = callback && function(socketId) {
-        var socketInfo = {
-            socketId: socketId
-        };
-        callback(socketInfo);
+        callback(socketId);
     };
-    exec(win, null, 'Socket', 'create', [socketMode]);
+    exec(win, null, 'Socket', 'socket', [socketMode]);
 };
 
-exports.destroy = function(socketId) {
-    exec(null, null, 'Socket', 'destroy', [socketId]);
-};
-
-
-exports.connect = function(socketId, address, port, callback) {
+exports.listen = function(socketId, info, backlog, callback) {
     var win = callback && function() {
-        callback(0);
+        callback(1);
     };
     var fail = callback && function() {
-        callback(-1000);
+        callback(-1);
     };
-    exec(win, fail, 'Socket', 'connect', [socketId, address, port]);
+    exec(win, fail, 'Socket', 'listen', [socketId, info, backlog]);
 };
 
-exports.bind = function(socketId, address, port, callback) {
+exports.accept = function(socketId, callback) {
+    var win = callback && function(acceptedSocketId) {
+        var acceptInfo = {
+            resultCode: 1,
+            socketId: acceptedSocketId
+        };
+        callback(acceptInfo);
+    };
+    var fail = callback && function() {
+        var acceptInfo = {
+            resultCode: -1
+        };
+        callback(acceptInfo);
+    };
+    exec(win, fail, 'Socket', 'accept', [socketId]);
+};
+
+exports.select = function(socketId, timeout, callback) {
     var win = callback && function() {
-        callback(0);
+        callback(1);
     };
     var fail = callback && function() {
-        callback(-1000);
+        callback(-1);
     };
-    exec(win, fail, 'Socket', 'bind', [socketId, address, port]);
+    exec(win, fail, 'Socket', 'select', [socketId, timeout]);
 };
 
-exports.disconnect = function(socketId) {
-    exec(null, null, 'Socket', 'disconnect', [socketId]);
-};
-
-
-exports.read = function(socketId, bufferSize, callback) {
-    if (typeof bufferSize == 'function') {
-        callback = bufferSize;
-        bufferSize = 0;
-    }
-    bufferSize = bufferSize || 0;
-    var win = callback && function(data) {
-        var readInfo = {
-            resultCode: data.byteLength || 1,
-            data: data
-        };
-        callback(readInfo);
-    };
-    var fail = callback && function() {
-        var readInfo = {
-            resultCode: 0
-        };
-        callback(readInfo);
-    };
-    exec(win, fail, 'Socket', 'read', [socketId, bufferSize]);
-};
-
-exports.write = function(socketId, data, callback) {
+exports.send = function(socketId, data, callback) {
     var type = Object.prototype.toString.call(data).slice(8, -1);
     if (type != 'ArrayBuffer') {
         throw new Error('chrome.socket.write - data is not an ArrayBuffer! (Got: ' + type + ')');
     }
     var win = callback && function(bytesWritten) {
-        var writeInfo = {
-            bytesWritten: bytesWritten
-        };
-        callback(writeInfo);
+        callback(bytesWritten);
     };
+
     var fail = callback && function() {
-        var writeInfo = {
-            bytesWritten: 0
-        };
-        callback(writeInfo);
+        callback(0);
     };
-    exec(win, fail, 'Socket', 'write', [socketId, data]);
+    exec(win, fail, 'Socket', 'send', [socketId, data]);
 };
 
+exports.recv = function(socketId, size, callback) {
+    var win = callback && function(data) {
+            var readInfo = {
+                resultCode: data.byteLength || 1,
+                data: data
+            };
+            callback(readInfo);
+    };
+
+    var fail = callback && function() {
+        var readInfo = {
+            resultCode: -1
+        };
+        callback(readInfo);
+    };
+    exec(win, fail, 'Socket', 'recv', [socketId, size]);
+};
+
+exports.close = function(socketId) {
+    exec(null, null, 'Socket', 'close', [socketId]);
+};
+
+
+exports.connect = function(socketId, info, callback) {
+    var win = callback && function() {
+        callback(1);
+    };
+    var fail = callback && function() {
+        callback(-1);
+    };
+    exec(win, fail, 'Socket', 'connect', [socketId, info]);
+};
+
+
+exports.sendTo = function(socketId, data, info, callback) {
+    var type = Object.prototype.toString.call(data).slice(8, -1);
+    if (type != 'ArrayBuffer') {
+        throw new Error('chrome.socket.write - data is not an ArrayBuffer! (Got: ' + type + ')');
+    }
+    var win = callback && function(bytesWritten) {
+        callback(bytesWritten);
+    };
+    var fail = callback && function() {
+        callback(-1);
+    };
+    exec(win, fail, 'Socket', 'sendTo', [{ socketId: socketId, info: info}, data]);
+};
 
 exports.recvFrom = function(socketId, bufferSize, callback) {
     if (typeof bufferSize == 'function') {
@@ -99,99 +128,30 @@ exports.recvFrom = function(socketId, bufferSize, callback) {
         bufferSize = 0;
     }
     bufferSize = bufferSize || 0;
-    var win;
-    if (platform.id == 'android') {
-        win = callback && (function() {
-            var data;
-            var call = 0;
-            return function(arg) {
-                if (call === 0) {
-                    data = arg;
-                    call++;
-                } else {
-                    var recvFromInfo = {
-                        resultCode: data.byteLength || 1,
-                        data: data,
-                        address: arg.address,
-                        port: arg.port
-                    };
-
-                    callback(recvFromInfo);
-                }
-            };
-        })();
-    } else {
-        win = callback && function(data, address, port) {
-            var recvFromInfo = {
-                resultCode: data.byteLength || 1,
-                data: data,
-                address: address,
-                port: port
-            };
-            callback(recvFromInfo);
+    var win = callback && function(arg) {
+        var recvFromInfo = {
+            resultCode: arg.resultCode || 1,
+            data: stringToBytes(arg.data),
+            address: arg.address,
+            port: arg.port
         };
-    }
+        callback(recvFromInfo);
+};
+
 
     var fail = callback && function() {
         var readInfo = {
-            resultCode: 0
+            resultCode: -1
         };
         callback(readInfo);
     };
     exec(win, fail, 'Socket', 'recvFrom', [socketId, bufferSize]);
 };
 
-exports.sendTo = function(socketId, data, address, port, callback) {
-    var type = Object.prototype.toString.call(data).slice(8, -1);
-    if (type != 'ArrayBuffer') {
-        throw new Error('chrome.socket.write - data is not an ArrayBuffer! (Got: ' + type + ')');
-    }
-    var win = callback && function(bytesWritten) {
-        var writeInfo = {
-            bytesWritten: bytesWritten
-        };
-        callback(writeInfo);
-    };
-    var fail = callback && function() {
-        var writeInfo = {
-            bytesWritten: 0
-        };
-        callback(writeInfo);
-    };
-    exec(win, fail, 'Socket', 'sendTo', [{ socketId: socketId, address: address, port: port }, data]);
-};
 
 
-exports.listen = function(socketId, address, port, backlog, callback) {
-    if (typeof backlog == 'function') {
-        callback = backlog;
-        backlog = 0;
-    }
-    var win = callback && function() {
-        callback(0);
-    };
-    var fail = callback && function() {
-        callback(-1000);
-    };
-    exec(win, fail, 'Socket', 'listen', [socketId, address, port, backlog]);
-};
 
-exports.accept = function(socketId, callback) {
-    var win = callback && function(acceptedSocketId) {
-        var acceptInfo = {
-            resultCode: 0,
-            socketId: acceptedSocketId
-        };
-        callback(acceptInfo);
-    };
-    var fail = callback && function() {
-        var acceptInfo = {
-            resultCode: -1000
-        };
-        callback(acceptInfo);
-    };
-    exec(win, fail, 'Socket', 'accept', [socketId]);
-};
+
 
 
 exports.setKeepAlive = function() {
@@ -212,52 +172,6 @@ exports.getInfo = function(socketId, callback) {
 
 exports.getNetworkList = function(callback) {
   network.getNetworkInterfaces(callback);
-};
-
-exports.joinGroup = function(socketId, address, callback) {
-    var win = callback && function() {
-        callback(0);
-    };
-    var fail = callback && function() {
-        callback(-1000);
-    };
-    exec(win, fail, 'Socket', 'joinGroup', [socketId, address]);
-};
-
-exports.leaveGroup = function(socketId, address, callback) {
-    var win = callback && function() {
-        callback(0);
-    };
-    var fail = callback && function() {
-        callback(-1000);
-    };
-    exec(win, fail, 'Socket', 'leaveGroup', [socketId, address]);
-};
-
-exports.setMulticastTimeToLive = function(socketId, ttl, callback) {
-    if (platform.id !== 'android') {
-        console.warn('chrome.socket.setMulticastTimeToLive not implemented yet');
-        return;
-    }
-
-    exec(callback, null, 'Socket', 'setMulticastTimeToLive', [socketId, ttl]);
-};
-
-exports.setMulticastLoopbackMode = function(socketId, enabled, callback) {
-    if (platform.id !== 'android') {
-        console.warn('chrome.socket.setMulticastLoopbackMode not implemented yet');
-        return;
-    }
-
-    exec(callback, null, 'Socket', 'setMulticastLoopbackMode', [socketId, enabled]);
-};
-
-exports.getJoinedGroups = function(socketId, callback) {
-    var win = callback;
-    var fail = callback && function() {
-        callback(-1000);
-    };
-    exec(win, fail, 'Socket', 'getJoinedGroups', [socketId]);
 };
 
 /* Converted From chromium/src/net/base/net_error_list.h
@@ -429,3 +343,5 @@ error_map[-805] = 'DNS_SEARCH_EMPTY';
 error_map[-806] = 'DNS_SORT_ERROR';
 
 */
+
+});

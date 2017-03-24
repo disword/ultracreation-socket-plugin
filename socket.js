@@ -1,8 +1,3 @@
-cordova.define("ultracreation-socket-plugin.Socket", function(require, exports, module) {
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 var stringToBytes = function(content) {
     var array = new Uint8Array(content.length);
     for (var i = 0, l = content.length; i < l; i++) {
@@ -343,5 +338,3 @@ error_map[-805] = 'DNS_SEARCH_EMPTY';
 error_map[-806] = 'DNS_SORT_ERROR';
 
 */
-
-});

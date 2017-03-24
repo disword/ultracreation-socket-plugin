@@ -718,6 +718,7 @@ public class UltracreationSocket extends CordovaPlugin {
             buf.clear();
             buf.put(data);
             buf.flip();
+            udpSocket.socket().setBroadcast(true);
             return udpSocket.send(buf, new InetSocketAddress(address, port));
         }
 

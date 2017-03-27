@@ -754,14 +754,14 @@ public class UltracreationSocket extends CordovaPlugin {
             }
 
             if (bytesRead < 0) {
-                try {
-                    if (type == SocketType.TCP)
-                        tcpSocket.close();
-                    else
-                        udpSocket.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+//                 try {
+//                     if (type == SocketType.TCP)
+//                         tcpSocket.close();
+//                     else
+//                         udpSocket.close();
+//                 } catch (IOException e) {
+//                     e.printStackTrace();
+//                 }
 
                 context.error(ERROR_CLOSE);
                 System.out.println(ERROR_CLOSE);

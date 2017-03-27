@@ -695,7 +695,19 @@ public class UltracreationSocket extends CordovaPlugin {
         public int send(byte[] data) {
             int write = 0;
             try {
-                write = tcpSocket.write(ByteBuffer.wrap(data));
+                if(type == SocketType.TCP) {
+                    if(tcpSocket == null) {
+                        System.out.println("send tcpSocket is null");
+                        return 0;
+                    }
+                    write = tcpSocket.write(ByteBuffer.wrap(data));
+                }else {
+                    if(udpSocket == null) {
+                        System.out.println("send udpSocket is null");
+                        return 0;
+                    }
+                    write = udpSocket.write(ByteBuffer.wrap(data));
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -740,12 +752,12 @@ public class UltracreationSocket extends CordovaPlugin {
                 }
             } else {
                 try {
-                    bytesRead = udpSocket.read(buf);
-                    if (bytesRead > 0) {
-                        buf.flip();
-                        data = new byte[bytesRead];
-                        buf.get(data, 0, data.length);
-                    }
+                    udpSocket.receive(buf);
+                    buf.flip();
+                    bytesRead = buf.remaining();
+                    data = new byte[bytesRead];
+                    buf.get(data, 0, data.length);
+                    System.out.println("buf.remaining() = " + bytesRead);
                 } catch (IOException e) {
                     e.printStackTrace();
                     context.error(ERROR_CLOSE);
@@ -754,14 +766,14 @@ public class UltracreationSocket extends CordovaPlugin {
             }
 
             if (bytesRead < 0) {
-//                 try {
-//                     if (type == SocketType.TCP)
-//                         tcpSocket.close();
-//                     else
-//                         udpSocket.close();
-//                 } catch (IOException e) {
-//                     e.printStackTrace();
-//                 }
+//                try {
+//                    if (type == SocketType.TCP)
+//                        tcpSocket.close();
+//                    else
+//                        udpSocket.close();
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
 
                 context.error(ERROR_CLOSE);
                 System.out.println(ERROR_CLOSE);

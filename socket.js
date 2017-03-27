@@ -1,4 +1,3 @@
-var errno = 0;
 var stringToBytes = function(content) {
     var array = new Uint8Array(content.length);
     for (var i = 0, l = content.length; i < l; i++) {
@@ -6,6 +5,8 @@ var stringToBytes = function(content) {
     }
     return array.buffer;
  };
+
+exports.errno = 0;
 
 var platform = cordova.require('cordova/platform');
 var exec = cordova.require('cordova/exec');
@@ -15,20 +16,20 @@ exports.socket = function(socketMode, callback) {
     var win = callback && function(socketId) {
         callback(socketId);
         if(socketId < 0)
-            errno = -1;
+            exports.errno = -1;
         else
-            errno = 0;
+            exports.errno = 0;
     };
     exec(win, null, 'Socket', 'socket', [socketMode]);
 };
 
 exports.bind = function(socketId, info, callback) {
     var win = callback && function() {
-        errno = 0;
+        exports.errno = 0;
         callback(0);
     };
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'bind', [socketId, info]);
@@ -36,11 +37,11 @@ exports.bind = function(socketId, info, callback) {
 
 exports.listen = function(socketId, backlog, callback) {
     var win = callback && function() {
-        errno = 0;
+        exports.errno = 0;
         callback(0);
     };
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'listen', [socketId, backlog]);
@@ -48,11 +49,11 @@ exports.listen = function(socketId, backlog, callback) {
 
 exports.accept = function(socketId, callback) {
     var win = callback && function(acceptedSocketId) {
-        errno = 0;
+        exports.errno = 0;
         callback(acceptedSocketId);
     };
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'accept', [socketId]);
@@ -61,12 +62,12 @@ exports.accept = function(socketId, callback) {
 exports.select_readfds = function(socketId, timeout, callback) {
 
     var win = callback && function(set) {
-        errno = 0;
+        exports.errno = 0;
         callback(set);
     };
     var fail = callback && function() {
         var error_array = [-1];
-        errno = -1;
+        exports.errno = -1;
         callback(error_array);
     };
     exec(win, fail, 'Socket', 'select', [socketId, timeout]);
@@ -78,12 +79,12 @@ exports.send = function(socketId, data, callback) {
         throw new Error('chrome.socket.write - data is not an ArrayBuffer! (Got: ' + type + ')');
     }
     var win = callback && function(bytesWritten) {
-        errno = 0;
+        exports.errno = 0;
         callback(bytesWritten);
     };
 
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'send', [socketId, data]);
@@ -91,13 +92,13 @@ exports.send = function(socketId, data, callback) {
 
 exports.recv = function(socketId, size, callback) {
     var win = callback && function(data) {
-        errno = 0;
+        exports.errno = 0;
         callback(data);
     };
 
     var fail = callback && function() {
         var readInfo = new Uint8Array(0);
-        errno = -1;
+        exports.errno = -1;
         callback(readInfo.buffer);
     };
     exec(win, fail, 'Socket', 'recv', [socketId, size]);
@@ -110,11 +111,11 @@ exports.close = function(socketId) {
 
 exports.connect = function(socketId, info, callback) {
     var win = callback && function() {
-        errno = 0;
+        exports.errno = 0;
         callback(0);
     };
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'connect', [socketId, info]);
@@ -127,11 +128,11 @@ exports.sendTo = function(socketId, data, info, callback) {
         throw new Error('chrome.socket.write - data is not an ArrayBuffer! (Got: ' + type + ')');
     }
     var win = callback && function(bytesWritten) {
-        errno = 0;
+        exports.errno = 0;
         callback(bytesWritten);
     };
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'sendTo', [{ socketId: socketId, info: info}, data]);
@@ -144,7 +145,7 @@ exports.recvFrom = function(socketId, bufferSize, callback) {
     }
     bufferSize = bufferSize || 0;
     var win = callback && function(arg) {
-        errno = 0;
+        exports.errno = 0;
         var recvFromInfo = {
             resultCode: arg.resultCode || 1,
             data: stringToBytes(arg.data),
@@ -156,7 +157,7 @@ exports.recvFrom = function(socketId, bufferSize, callback) {
 
 
     var fail = callback && function() {
-        errno = -1;
+        exports.errno = -1;
         var readInfo = {
             resultCode: -1
         };

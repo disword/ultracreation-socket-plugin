@@ -1,3 +1,7 @@
+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 package com.ultracreation;
 
 import android.util.Log;
@@ -6,6 +10,7 @@ import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaArgs;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.PluginResult;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -19,8 +24,10 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class UltracreationSocket extends CordovaPlugin {
@@ -39,11 +46,14 @@ public class UltracreationSocket extends CordovaPlugin {
     private static final String ERROR_NOT_CLIENT = "Only Client can accept";
     private static final String ERROR_ACCEPT = "Accept error";
     private static final String ERROR_UDP_WRITE = "UDP write error";
+    private Selector selector;
 
     @Override
     public boolean execute(String action, CordovaArgs args, final CallbackContext callbackContext) throws JSONException {
         if ("socket".equals(action)) {
             socket(args, callbackContext);
+        } else if ("bind".equals(action)) {
+            bind(args, callbackContext);
         } else if ("listen".equals(action)) {
             listen(args, callbackContext);
         } else if ("accept".equals(action)) {
@@ -60,7 +70,7 @@ public class UltracreationSocket extends CordovaPlugin {
             sendTo(args, callbackContext);
         } else if ("recvFrom".equals(action)) {
             recvFrom(args, callbackContext);
-        }else if ("close".equals(action)) {
+        } else if ("close".equals(action)) {
             close(args, callbackContext);
         }
 // else if ("disconnect".equals(action)) {
@@ -86,6 +96,15 @@ public class UltracreationSocket extends CordovaPlugin {
     }
 
     private void destroyAllSockets() {
+        if(selector != null){
+            try {
+                selector.close();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            selector = null;
+        }
         System.out.println("destroyAllSockets");
         if (sockets.isEmpty()) return;
 
@@ -155,7 +174,7 @@ public class UltracreationSocket extends CordovaPlugin {
             Log.d(TAG, ERROR_BIND);
             return;
         }
-        
+
         sd.close();
         context.success();
     }
@@ -166,6 +185,7 @@ public class UltracreationSocket extends CordovaPlugin {
         if (socketType.equals("tcp") || socketType.equals("udp")) {
             SocketData sd = new SocketData(socketType.equals("tcp") ? SocketType.TCP : SocketType.UDP);
             int id = addSocket(sd);
+            sd.setSocketId(id);
             callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, id));
         }
         callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, -1));
@@ -175,9 +195,6 @@ public class UltracreationSocket extends CordovaPlugin {
         System.out.println("listen");
         String[] info = args.getString(1).split(":");
         final int socketId = args.getInt(0);
-        final String address = info[0];
-        final int port = Integer.parseInt(info[1]);
-        final int backlog = args.getInt(2);
 
         final SocketData sd = sockets.get(socketId);
         if (sd == null) {
@@ -188,7 +205,34 @@ public class UltracreationSocket extends CordovaPlugin {
         cordova.getThreadPool().submit(new Runnable() {
             @Override
             public void run() {
-                boolean success = sd.listen(address, port, backlog);
+                boolean success = sd.listen();
+                if (success)
+                    context.sendPluginResult(new PluginResult(PluginResult.Status.OK, 1));
+                else {
+                    context.error(ERROR_BIND);
+                    Log.d(TAG, ERROR_BIND);
+                }
+            }
+        });
+    }
+
+    public void bind(final CordovaArgs args, final CallbackContext context) throws JSONException {
+        System.out.println("listen");
+        String[] info = args.getString(1).split(":");
+        final int socketId = args.getInt(0);
+        final String address = info[0];
+        final int port = Integer.parseInt(info[1]);
+
+        final SocketData sd = sockets.get(socketId);
+        if (sd == null) {
+            context.error(ERROR_BIND);
+            Log.d(TAG, ERROR_BIND);
+            return;
+        }
+        cordova.getThreadPool().submit(new Runnable() {
+            @Override
+            public void run() {
+                boolean success = sd.bind(address, port);
                 if (success)
                     context.sendPluginResult(new PluginResult(PluginResult.Status.OK, 1));
                 else {
@@ -208,33 +252,145 @@ public class UltracreationSocket extends CordovaPlugin {
             Log.d(TAG, ERROR_ACCEPT);
             return;
         }
-        sd.accept(context);
+        try {
+            sd.accept(context);
+        } catch (Exception e) {
+            e.printStackTrace();
+            context.error(ERROR_ACCEPT);
+            Log.d(TAG, ERROR_ACCEPT);
+        }
     }
 
     public void select(CordovaArgs args, final CallbackContext context) throws JSONException {
         System.out.println("select");
-        final int socketId = args.getInt(0);
+        final List<Integer> socketIdList = getList(args.getJSONArray(0));
+
+        if (socketIdList == null || socketIdList.size() == 0)
+            context.error("no socket set");
+        System.out.println("socketIdList = " + socketIdList.size());
         final int timeout = args.getInt(1);
-
-        final SocketData sd = sockets.get(socketId);
-        System.out.println("select = " + sd);
-        if (sd == null) {
-            context.error(ERROR_NOT_CREATE);
-            Log.d(TAG, ERROR_NOT_CREATE);
-            return;
-        }
-
+        final int time = timeout < 0 ? 0 : timeout;
         cordova.getThreadPool().submit(new Runnable() {
+
             @Override
             public void run() {
                 try {
-                    sd.select(timeout, context);
+                    if (selector == null)
+                    synchronized (this) {
+                        if (selector == null)
+                            selector = Selector.open();
+                    }
+                    JSONArray array = new JSONArray();
+                    for (int i = 0; i < socketIdList.size(); i++) {
+                        int socketId = socketIdList.get(i);
+                        final SocketData sd = sockets.get(socketId);
+                        if (sd != null) {
+                            sd.select(selector);
+                        }
+                    }
+                    int select = selector.select(time);
+                    if (select > 0) {
+                        array = checkSelector(selector, context);
+                    }
+                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, array);
+                    context.sendPluginResult(pluginResult);
                 } catch (Exception e) {
                     e.printStackTrace();
                     context.error(ERROR_CLOSE);
                 }
+                System.out.println("select end");
             }
         });
+
+//        final SocketData sd = sockets.get(socketId);
+//        System.out.println("select = " + sd);
+//        if (sd == null) {
+//            context.error(ERROR_NOT_CREATE);
+//            Log.d(TAG, ERROR_NOT_CREATE);
+//            return;
+//        }
+//
+//        cordova.getThreadPool().submit(new Runnable() {
+//            @Override
+//            public void run() {
+//                try {
+//                    sd.select(timeout, context);
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                    context.error(ERROR_CLOSE);
+//                }
+//            }
+//        });
+    }
+
+
+    private JSONArray checkSelector(Selector selector, final CallbackContext context) throws Exception {
+        JSONArray array = new JSONArray();
+        Iterator iterator = selector.selectedKeys().iterator();
+
+        while (iterator.hasNext()) {
+            SelectionKey key = null;
+            try {
+                key = (SelectionKey) iterator.next();
+                //记住一定要remove这个key，否则之后的新连接将被阻塞无法连接服务器
+                iterator.remove();
+                Integer socketId = (Integer) key.attachment();
+                if (socketId == null)
+                    continue;
+                if (key.isValid() && key.isAcceptable()) {
+                    if (!hasIds(array, socketId))
+                        array.put(socketId.intValue());
+//                    selectAccept(key);
+                }
+
+                if (key.isValid() && key.isReadable()) {
+//                    selectRead(key);
+                    if (!hasIds(array, socketId))
+                        array.put(socketId.intValue());
+                }
+//                            if (key.isValid() && key.isWritable()) {
+//                            }
+            } catch (Exception e) {
+                context.error(ERROR_CLOSE);
+                e.printStackTrace();
+                try {
+                    if (key != null) {
+                        key.cancel();
+                        key.channel().close();
+                    }
+                    if(selector != null) {
+                        selector.close();
+                        selector = null;
+                    }
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                }
+
+            }
+        }
+//        selector.close();
+        return array;
+    }
+
+
+    private boolean hasIds(JSONArray array, int id) throws Exception {
+        for (int i = 0; i < array.length(); i++) {
+            int anInt = array.getInt(i);
+            if (anInt == id)
+                return true;
+        }
+        return false;
+    }
+
+    private List<Integer> getList(JSONArray jsonArray) throws JSONException {
+        List<Integer> socketIdList = new ArrayList<Integer>();
+        for (int i = 0; i < jsonArray.length(); i++) {
+            int socketId = jsonArray.getInt(i);
+            System.out.println(i + " socketId = " + socketId);
+            socketIdList.add(socketId);
+        }
+
+        return socketIdList;
     }
 
     public void send(CordovaArgs args, final CallbackContext context) throws JSONException {
@@ -367,7 +523,8 @@ public class UltracreationSocket extends CordovaPlugin {
 
         private ServerSocketChannel tcpServer;
         private SocketChannel tcpSocket;
-        private Selector selector = null;
+        private int socketId;
+//        private Selector selector = null;
 
         private DatagramChannel udpSocket;
         private Charset charset = Charset.forName("UTF-8");
@@ -383,16 +540,16 @@ public class UltracreationSocket extends CordovaPlugin {
         private int localPort;
 
         private boolean connected = false; // Only applies to UDP, where connect() restricts who the tcpSocket will receive from.
-        private boolean bound = false;
+        private boolean isBinded = false;
 
         private boolean isServer = false;
-        private CallbackContext acceptCallback;
-        private CallbackContext recvCallback;
-        private CallbackContext recvFromCallback;
-        private int readSize = 1024;
+//        private CallbackContext acceptCallback;
+//        private CallbackContext recvCallback;
+//        private CallbackContext recvFromCallback;
 
         public SocketData(SocketType type) {
             this.type = type;
+
         }
 
         public SocketData(SocketChannel incoming) {
@@ -401,6 +558,10 @@ public class UltracreationSocket extends CordovaPlugin {
             connected = true;
             address = incoming.socket().getInetAddress();
             port = incoming.socket().getPort();
+        }
+
+        public void setSocketId(int socketId) {
+            this.socketId = socketId;
         }
 
         public void connect(String address, int port, final CallbackContext context) throws Exception {
@@ -419,14 +580,19 @@ public class UltracreationSocket extends CordovaPlugin {
             connected = true;
         }
 
-        public boolean listen(String address, int port, int backlog) {
+        public boolean listen() {
+            return isBinded;
+        }
+
+        public boolean bind(String address, int port) {
             if (type == SocketType.TCP) {
                 try {
                     isServer = true;
                     init();
                     tcpServer.socket().setReuseAddress(true);
                     InetSocketAddress isa = new InetSocketAddress(address, port);
-                    tcpServer.socket().bind(isa, backlog);
+                    tcpServer.socket().bind(isa);
+                    isBinded = true;
                     return true;
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -436,6 +602,7 @@ public class UltracreationSocket extends CordovaPlugin {
                     isServer = true;
                     init();
                     udpSocket.socket().bind(new InetSocketAddress(address, port));
+                    isBinded = true;
                     return true;
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -477,8 +644,8 @@ public class UltracreationSocket extends CordovaPlugin {
                 if (udpSocket != null)
                     udpSocket.close();
 
-                if(selector != null)
-                    selector.close();
+//                if(selector != null)
+//                    selector.close();
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -486,101 +653,43 @@ public class UltracreationSocket extends CordovaPlugin {
             tcpSocket = null;
             udpSocket = null;
             tcpServer = null;
-            selector = null;
+//            selector = null;
         }
 
-        public void select(int timeout, final CallbackContext context) throws Exception {
-            selectImply(timeout, context);
+        public void select(Selector selector) throws Exception {
+            selectImply(selector);
         }
 
-        private void selectImply(int timeout, final CallbackContext context) throws Exception {
+        private void selectImply(Selector selector) throws Exception {
             init();
-            if(timeout < 0)
-                timeout = 0;
-            selector = Selector.open();
+
             if (type == SocketType.TCP) {
                 System.out.println("selectImply");
                 if (isServer) {
                     tcpServer.configureBlocking(false);
-                    tcpServer.register(selector, SelectionKey.OP_ACCEPT);
+                    SelectionKey register = tcpServer.register(selector, SelectionKey.OP_ACCEPT);
+                    register.attach(socketId);
                 } else {
                     tcpSocket.configureBlocking(false);
-                    tcpSocket.register(selector, SelectionKey.OP_READ);
+                    SelectionKey register = tcpSocket.register(selector, SelectionKey.OP_READ);
+                    register.attach(socketId);
                 }
             } else {
                 System.out.println("udpSelect");
                 if (isServer) {
                     udpSocket.configureBlocking(false);
-                    udpSocket.register(selector, SelectionKey.OP_READ);
+                    SelectionKey register = udpSocket.register(selector, SelectionKey.OP_READ);
+                    register.attach(socketId);
                 }
             }
 
-            PluginResult temp = new PluginResult(PluginResult.Status.OK, 0);
-            temp.setKeepCallback(true);
-            context.sendPluginResult(temp);
-            /** 外循环，已经发生了SelectionKey数目 */
 
-            while (canRunning()) {
-                int select = selector.select(timeout);
-                System.out.println(isServer + " select = " + select);
-
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, select);
-                pluginResult.setKeepCallback(true);
-                context.sendPluginResult(pluginResult);
-
-                if (select > 0) {
-                /* 得到已经被捕获了的SelectionKey的集合 */
-                    Iterator iterator = selector.selectedKeys().iterator();
-                    while (iterator.hasNext()) {
-                        SelectionKey key = null;
-                        try {
-                            key = (SelectionKey) iterator.next();
-                            //记住一定要remove这个key，否则之后的新连接将被阻塞无法连接服务器
-                            iterator.remove();
-                            if (key.isAcceptable()) {
-                                selectAccept(key);
-                            }
-
-                            if (key.isValid() && key.isReadable()) {
-                                selectRead(key);
-                            }
-//                            if (key.isValid() && key.isWritable()) {
-//                                // send(key);
-//                            }
-                        } catch (Exception e) {
-                            context.error(ERROR_CLOSE);
-                            e.printStackTrace();
-                            try {
-                                if (key != null) {
-                                    key.cancel();
-                                    key.channel().close();
-                                }
-                            } catch (Exception cex) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
-                }
-            }
-            System.out.println("Select end");
         }
 
         private void selectAccept(SelectionKey key) throws Exception {
+            Integer aa = (Integer) key.attachment();
             ServerSocketChannel ssc = (ServerSocketChannel) key.channel();
-            //设置为非阻塞
-            SocketChannel sc = ssc.accept();
-            System.out.println("客户端机子的地址是 "
-                    + sc.socket().getRemoteSocketAddress()
-                    + "  客户端机机子的端口号是 "
-                    + sc.socket().getLocalPort());
 
-            if (acceptCallback != null) {
-                SocketData sd = new SocketData(sc);
-                int id = UltracreationSocket.this.addSocket(sd);
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, id);
-                pluginResult.setKeepCallback(true);
-                acceptCallback.sendPluginResult(pluginResult);
-            }
         }
 
         public int send(byte[] data) {
@@ -595,130 +704,172 @@ public class UltracreationSocket extends CordovaPlugin {
         }
 
         public void recv(int size, CallbackContext context) {
-            this.recvCallback = context;
-            this.readSize = size;
+
+            //***用channel.read()获取客户端消息***//
+            //：接收时需要考虑字节长度
+
+
+            if (type == SocketType.TCP && tcpSocket == null) {
+                context.error("tcpSocket is null");
+                System.out.println("tcpSocket is null");
+                return;
+            }
+
+
+            if (type == SocketType.UDP && udpSocket == null) {
+                context.error("udpSocket is null");
+                System.out.println("udpSocket is null");
+                return;
+            }
+
+            ByteBuffer buf = ByteBuffer.allocate(size);
+            byte[] data = new byte[1];
+            int bytesRead = 0;
+            if (type == SocketType.TCP) {
+                try {
+                    bytesRead = tcpSocket.read(buf);
+                    if (bytesRead > 0) {
+                        buf.flip();
+                        data = new byte[bytesRead];
+                        buf.get(data, 0, data.length);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    context.error(ERROR_CLOSE);
+                    System.out.println(ERROR_CLOSE);
+                }
+            } else {
+                try {
+                    bytesRead = udpSocket.read(buf);
+                    if (bytesRead > 0) {
+                        buf.flip();
+                        data = new byte[bytesRead];
+                        buf.get(data, 0, data.length);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    context.error(ERROR_CLOSE);
+                    System.out.println(ERROR_CLOSE);
+                }
+            }
+
+            if (bytesRead < 0) {
+                try {
+                    if (type == SocketType.TCP)
+                        tcpSocket.close();
+                    else
+                        udpSocket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                context.error(ERROR_CLOSE);
+                System.out.println(ERROR_CLOSE);
+
+            } else {
+                if (data.length > 0) {
+                    System.out.println("接收：" + new String(data));
+                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, data);
+//                    pluginResult.setKeepCallback(true);
+                    context.sendPluginResult(pluginResult);
+                }
+            }
+
         }
 
         public void recvFrom(int size, CallbackContext context) {
-            this.recvFromCallback = context;
-            this.readSize = size;
+//            this.recvFromCallback = context;
+//            this.readSize = size;
+
+
         }
 
         public void selectRead(SelectionKey key) {
             if (key == null)
                 return;
 
-            //***用channel.read()获取客户端消息***//
-            //：接收时需要考虑字节长度
-            SocketChannel sc = null;
-            DatagramChannel dc = null;
-            if (type == SocketType.TCP) {
-                sc = (SocketChannel) key.channel();
-                if (sc == null) {
-                    return;
-                }
-                System.out.println("sc2 = " + sc);
-            } else {
-                dc = (DatagramChannel) key.channel();
-                if (dc == null) {
-                    return;
-                }
-                System.out.println("dc = " + dc);
-            }
-
 
 //            String content = "";
             //create buffer with capacity of 48 bytes
 
-
-
-
-            if (this.recvFromCallback != null && type == SocketType.UDP) {
-//                        JSONObject obj = new JSONObject();
-//                        try {
-//                            obj.put("address", sc.hashCode());
-//                            obj.put("port", packet.getPort());
 //
-//                        } catch (JSONException je) {
-//                            Log.e(LOG_TAG, "Error constructing JSON object to return from recvFrom()", je);
-//                            return;
-//                        }
-//                        context.success(obj);
-                JSONObject obj = new JSONObject();
-                try {
-                    ByteBuffer byte_buffer = ByteBuffer.allocate(1024);
-                    InetSocketAddress remote_address = (InetSocketAddress) ((DatagramChannel) key.channel()).receive(byte_buffer);
-                    byte_buffer.flip();
-                    byte[] data = new byte[byte_buffer.remaining()];
-                    byte_buffer.get(data, 0, data.length);
-                    System.out.println("recvFrom 接收：" + new String(data));
-                    System.out.println("remote_address = " + remote_address.getHostName());
-                    System.out.println("remote_address = " + remote_address.getPort());
-
-                    obj.put("resultCode", data.length);
-                    obj.put("data",new String(data));
-                    obj.put("address", remote_address.getHostName());
-                    obj.put("port", remote_address.getPort());
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, obj);
-                pluginResult.setKeepCallback(true);
-                this.recvFromCallback.sendPluginResult(pluginResult);
-                return;
-            }
-
-            byte[] data = new byte[0];
-            ByteBuffer buf = ByteBuffer.allocate(readSize);//java里一个(utf-8)中文3字节,gbk中文占2个字节
-            int bytesRead = 0; //read into buffer.
-
-            try {
-                if (type == SocketType.TCP) {
-                    bytesRead = sc.read(buf);
-                    if (bytesRead > 0) {
-                        buf.flip();
-                        data = new byte[bytesRead];
-                        buf.get(data, 0, data.length);
-                        key.interestOps(SelectionKey.OP_READ);
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            System.out.println("bytesRead = " + bytesRead);
-
-            if (bytesRead < 0) {
-                try {
-                    sc.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
-                if (this.recvCallback != null) {
-                    this.recvCallback.error(ERROR_CLOSE);
-                }
-            } else {
-                if (data.length > 0) {
-                    System.out.println("接收：" + new String(data));
-                    if (this.recvCallback != null) {
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, data);
-                        pluginResult.setKeepCallback(true);
-                        this.recvCallback.sendPluginResult(pluginResult);
-                    }
-                }
-            }
+//            if (this.recvFromCallback != null && type == SocketType.UDP) {
+//
+//                JSONObject obj = new JSONObject();
+//                try {
+//                    ByteBuffer byte_buffer = ByteBuffer.allocate(1024);
+//                    InetSocketAddress remote_address = (InetSocketAddress) ((DatagramChannel) key.channel()).receive(byte_buffer);
+//                    byte_buffer.flip();
+//                    byte[] data = new byte[byte_buffer.remaining()];
+//                    byte_buffer.get(data, 0, data.length);
+//                    System.out.println("recvFrom 接收：" + new String(data));
+//                    System.out.println("remote_address = " + remote_address.getHostName());
+//                    System.out.println("remote_address = " + remote_address.getPort());
+//
+//                    obj.put("resultCode", data.length);
+//                    obj.put("data", new String(data));
+//                    obj.put("address", remote_address.getHostName());
+//                    obj.put("port", remote_address.getPort());
+//
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, obj);
+//                pluginResult.setKeepCallback(true);
+//                this.recvFromCallback.sendPluginResult(pluginResult);
+//                return;
+//            }
+//
+//            byte[] data = new byte[0];
+//            ByteBuffer buf = ByteBuffer.allocate(readSize);//java里一个(utf-8)中文3字节,gbk中文占2个字节
+//            int bytesRead = 0; //read into buffer.
+//
+//            try {
+//                if (type == SocketType.TCP) {
+//                    bytesRead = sc.read(buf);
+//                    if (bytesRead > 0) {
+//                        buf.flip();
+//                        data = new byte[bytesRead];
+//                        buf.get(data, 0, data.length);
+//                        key.interestOps(SelectionKey.OP_READ);
+//                    }
+//                }
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//
+//            System.out.println("bytesRead = " + bytesRead);
+//
+//            if (bytesRead < 0) {
+//                try {
+//                    sc.close();
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//
+//                if (this.recvCallback != null) {
+//                    this.recvCallback.error(ERROR_CLOSE);
+//                }
+//            } else {
+//                if (data.length > 0) {
+//                    System.out.println("接收：" + new String(data));
+//                    if (this.recvCallback != null) {
+//                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, data);
+//                        pluginResult.setKeepCallback(true);
+//                        this.recvCallback.sendPluginResult(pluginResult);
+//                    }
+//                }
+//            }
         }
 
         public int sendTo(String address, int port, byte[] data) throws Exception {
-            System.out.println("sendto = " + address +":" + port);
+            System.out.println("sendto = " + address + ":" + port);
             init();
             ByteBuffer buf = ByteBuffer.allocate(data.length);
             buf.clear();
             buf.put(data);
             buf.flip();
-            udpSocket.socket().setBroadcast(true);
+
             return udpSocket.send(buf, new InetSocketAddress(address, port));
         }
 
@@ -731,16 +882,33 @@ public class UltracreationSocket extends CordovaPlugin {
             } else if (type == SocketType.UDP) {
                 if (udpSocket == null)
                     udpSocket = DatagramChannel.open();
+                udpSocket.socket().setBroadcast(true);
             }
         }
 
-        public void accept(CallbackContext context) {
-            if (!isServer) {
+        public void accept(CallbackContext context) throws Exception {
+            if (!isServer || tcpServer == null) {
                 System.out.println("accept() is not supported on client sockets. Call listen() first.");
                 context.error(ERROR_ACCEPT);
                 Log.d(TAG, ERROR_ACCEPT);
             }
-            this.acceptCallback = context;
+
+            //设置为非阻塞
+            SocketChannel sc = null;
+            if ((sc = tcpServer.accept()) != null) {
+                System.out.println("客户端机子的地址是 "
+                        + sc.socket().getRemoteSocketAddress()
+                        + "  客户端机机子的端口号是 "
+                        + sc.socket().getLocalPort());
+                SocketData sd = new SocketData(sc);
+                int id = UltracreationSocket.this.addSocket(sd);
+                sd.setSocketId(id);
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, id);
+//                pluginResult.setKeepCallback(true);
+                context.sendPluginResult(pluginResult);
+            }
+
+//            context.success("-111");
         }
     }
 }

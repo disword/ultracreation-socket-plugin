@@ -10,7 +10,6 @@ exports.errno = 0;
 
 var platform = cordova.require('cordova/platform');
 var exec = cordova.require('cordova/exec');
-var network = require('cordova-plugin-chrome-apps-system-network.system.network');
 
 exports.socket = function(socketMode, callback) {
     var win = callback && function(socketId) {

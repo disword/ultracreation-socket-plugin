@@ -13,11 +13,8 @@
     "url": "https://github.com/disword/ultracreation-socket-plugin.git"
   },
   "keywords": [
-    "chrome",
-    "socket",
     "ecosystem:cordova",
-    "cordova-android",
-    "cordova-ios"
+    "cordova-android"
   ],
   "engines": [
     {

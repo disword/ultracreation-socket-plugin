@@ -91,14 +91,6 @@ public class UltracreationSocket extends CordovaPlugin {
         } else if ("getpeername".equals(action)) {
             getpeername(args, callbackContext);
         }
-// else if ("disconnect".equals(action)) {
-//            disconnect(args, callbackContext);
-//        } else if ("destroy".equals(action)) {
-//            destroy(args, callbackContext);
-//        }  else if ("getInfo".equals(action)) {
-//            getInfo(args, callbackContext);
-//        }
-
         else {
             return false;
         }
@@ -753,19 +745,21 @@ public class UltracreationSocket extends CordovaPlugin {
 
         public void getsockname(final CallbackContext context) throws Exception {
             if (type == SocketType.TCP && tcpSocket != null) {
-                String address = tcpSocket.socket().getLocalSocketAddress().toString();
+                String address = tcpSocket.socket().getLocalAddress().getHostAddress() + ":" + tcpSocket.socket().getLocalPort();
                 if(!TextUtils.isEmpty(address)){
                     context.success(address);
                     return;
                 }
             }  else if(type == SocketType.TCP_SERVER && tcpServer != null) {
-                String address = tcpServer.socket().getLocalSocketAddress().toString();
+                String hostAddress = tcpServer.socket().getInetAddress().getHostAddress();
+                String finalAddress = hostAddress.equals("::") ? "0.0.0.0" : (hostAddress.equals("::1") ? "127.0.0.1" :hostAddress);
+                String address =  finalAddress + ":" + tcpServer.socket().getLocalPort();
                 if(!TextUtils.isEmpty(address)){
                     context.success(address);
                     return;
                 }
             }else if(type == SocketType.UDP && udpSocket != null) {
-                String address = udpSocket.socket().getLocalSocketAddress().toString();
+                String address = udpSocket.socket().getLocalAddress().getHostAddress() + ":" + udpSocket.socket().getLocalPort();
                 if(!TextUtils.isEmpty(address)){
                     context.success(address);
                     return;
@@ -776,13 +770,13 @@ public class UltracreationSocket extends CordovaPlugin {
 
         public void getpeername(final CallbackContext context) throws Exception {
             if (type == SocketType.TCP && tcpSocket != null) {
-                String address = tcpSocket.socket().getRemoteSocketAddress().toString();
+                String address = tcpSocket.socket().getInetAddress().getHostAddress() + ":" + tcpSocket.socket().getPort();
                 if(!TextUtils.isEmpty(address)){
                     context.success(address);
                     return;
                 }
             }  else if(type == SocketType.UDP && udpSocket != null) {
-                String address = udpSocket.socket().getRemoteSocketAddress().toString();
+                String address = udpSocket.socket().getInetAddress().getHostAddress() + ":" + udpSocket.socket().getPort();
                 if(!TextUtils.isEmpty(address)){
                     context.success(address);
                     return;

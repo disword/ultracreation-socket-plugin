@@ -82,9 +82,9 @@ public class UltracreationSocket extends CordovaPlugin {
             close(args, callbackContext);
         } else if ("shutdown".equals(action)) {
             shutdown(args);
-        } else if ("setsockopt_reuseraddr".equals(action)) {
+        } else if ("setreuseraddr".equals(action)) {
             setsockopt(args, OPTION_REUSERADDR);
-        } else if ("setsockopt_broadcast".equals(action)) {
+        } else if ("setbroadcast".equals(action)) {
             setsockopt(args, OPTION_BROADCAST);
         } else if ("getsockname".equals(action)) {
             getsockname(args, callbackContext);

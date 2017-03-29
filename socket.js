@@ -111,12 +111,12 @@ exports.shutdown = function(socketId,how) {
     exec(null, null, 'Socket', 'shutdown', [socketId,how]);
 };
 
-exports.setsockopt_reuseraddr = function(socketId,opt) {
-    exec(null, null, 'Socket', 'setsockopt_reuseraddr', [socketId,opt]);
+exports.setreuseraddr = function(socketId,opt) {
+    exec(null, null, 'Socket', 'setreuseraddr', [socketId,opt]);
 };
 
-exports.setsockopt_broadcast = function(socketId,opt) {
-    exec(null, null, 'Socket', 'setsockopt_broadcast', [socketId,opt]);
+exports.setbroadcast = function(socketId,opt) {
+    exec(null, null, 'Socket', 'setbroadcast', [socketId,opt]);
 };
 
 

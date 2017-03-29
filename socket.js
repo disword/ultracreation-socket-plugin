@@ -112,6 +112,41 @@ exports.shutdown = function(socketId,how) {
     exec(null, null, 'Socket', 'shutdown', [socketId,how]);
 };
 
+exports.setsockopt_reuseraddr = function(socketId,opt) {
+    exec(null, null, 'Socket', 'setsockopt_reuseraddr', [socketId,opt]);
+};
+
+exports.setsockopt_broadcast = function(socketId,opt) {
+    exec(null, null, 'Socket', 'setsockopt_broadcast', [socketId,opt]);
+};
+
+
+exports.getsockname = function(socketId, callback) {
+    var win = callback && function(address) {
+        exports.errno = 0;
+        callback(address);
+    };
+
+    var fail = callback && function() {
+        exports.errno = -1;
+        callback("");
+    };
+    exec(win, fail, 'Socket', 'getsockname', [socketId]);
+};
+
+exports.getpeername = function(socketId, callback) {
+    var win = callback && function(address) {
+        exports.errno = 0;
+        callback(address);
+    };
+
+    var fail = callback && function() {
+        exports.errno = -1;
+        callback("");
+    };
+    exec(win, fail, 'Socket', 'getpeername', [socketId]);
+};
+
 exports.connect = function(socketId, info, callback) {
     var win = callback && function() {
         exports.errno = 0;

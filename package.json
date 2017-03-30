@@ -5,7 +5,8 @@
   "cordova": {
     "id": "ultracreation-socket-plugin",
     "platforms": [
-      "android"
+      "android",
+      "ios"
     ]
   },
   "repository": {

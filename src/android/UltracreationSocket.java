@@ -1,6 +1,7 @@
 package com.ultracreation;
 
 import android.text.TextUtils;
+import android.util.Base64;
 import android.util.Log;
 
 import org.apache.cordova.CallbackContext;
@@ -74,12 +75,14 @@ public class UltracreationSocket extends CordovaPlugin {
             send(args, callbackContext);
         } else if ("recv".equals(action)) {
             recv(args, callbackContext);
+        } else if ("recvfrom".equals(action)) {
+            recvfrom(args, callbackContext);
         } else if ("connect".equals(action)) {
             connect(args, callbackContext);
         } else if ("sendTo".equals(action)) {
             sendTo(args, callbackContext);
-        } else if ("recvFrom".equals(action)) {
-            recvFrom(args, callbackContext);
+        } else if ("recvfrom".equals(action)) {
+            recvfrom(args, callbackContext);
         } else if ("close".equals(action)) {
             close(args, callbackContext);
         } else if ("shutdown".equals(action)) {
@@ -179,7 +182,7 @@ public class UltracreationSocket extends CordovaPlugin {
         sockets.clear();
     }
 
-    private void setsockopt(CordovaArgs args, final int option,final CallbackContext context) throws JSONException {
+    private void setsockopt(CordovaArgs args, final int option, final CallbackContext context) throws JSONException {
         final int socketId = args.getInt(0);
         final boolean isSet = args.getBoolean(1);
         final SocketData sd = sockets.get(Integer.valueOf(socketId));
@@ -231,7 +234,7 @@ public class UltracreationSocket extends CordovaPlugin {
     }
 
     private void close(CordovaArgs args, final CallbackContext context) throws JSONException {
-        int socketId = args.getInt(0);
+        final int socketId = args.getInt(0);
 
         final SocketData sd = sockets.get(Integer.valueOf(socketId));
         if (sd == null) {
@@ -244,6 +247,7 @@ public class UltracreationSocket extends CordovaPlugin {
             public void run() {
                 try {
                     sd.close();
+                    sockets.remove(Integer.valueOf(socketId));
                     context.success();
                 } catch (Exception e) {
                     Log.d(TAG, "close fail");
@@ -513,6 +517,33 @@ public class UltracreationSocket extends CordovaPlugin {
         });
     }
 
+    public void recvfrom(CordovaArgs args, final CallbackContext context) throws JSONException {
+        System.out.println("recv");
+        int socketId = args.getInt(0);
+        final int bufferSize = args.getInt(1);
+
+        final SocketData sd = sockets.get(Integer.valueOf(socketId));
+        if (sd == null) {
+            context.error(ERROR_CODE);
+            Log.d(TAG, ERROR_NOT_CREATE);
+            return;
+        }
+
+        // Will call the callback once it has some data.
+
+        cordova.getThreadPool().submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    sd.recvfrom(bufferSize, context);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    context.error(ERROR_CODE);
+                }
+            }
+        });
+    }
+
     private void connect(CordovaArgs args, final CallbackContext context) throws JSONException {
         System.out.println("connect");
         String[] info = args.getString(1).split(":");
@@ -574,20 +605,6 @@ public class UltracreationSocket extends CordovaPlugin {
                 }
             }
         });
-    }
-
-    private void recvFrom(CordovaArgs args, final CallbackContext context) throws JSONException {
-        System.out.println("recvFrom");
-        int socketId = args.getInt(0);
-        int bufferSize = args.getInt(1);
-
-        SocketData sd = sockets.get(Integer.valueOf(socketId));
-        if (sd == null) {
-            context.error(ERROR_NOT_CREATE);
-            Log.d(TAG, ERROR_NOT_CREATE);
-            return;
-        }
-        sd.recvFrom(bufferSize, context);
     }
 
     private int addSocket(SocketData sd) {
@@ -673,13 +690,13 @@ public class UltracreationSocket extends CordovaPlugin {
             }
         }
 
-        public void close() throws Exception{
+        public void close() throws Exception {
             if (tcpServer != null || tcpSocket != null || udpSocket != null) {
                 closeAll();
             }
         }
 
-        private void closeAll() throws Exception{
+        private void closeAll() throws Exception {
             System.out.println("closeAll");
             connected = false;
             isClose = true;
@@ -782,7 +799,7 @@ public class UltracreationSocket extends CordovaPlugin {
                     return;
                 }
             }
-            Log.d(TAG,ERROR_GETLOCAL);
+            Log.d(TAG, ERROR_GETLOCAL);
             context.error(ERROR_CODE);
         }
 
@@ -800,7 +817,7 @@ public class UltracreationSocket extends CordovaPlugin {
                     return;
                 }
             }
-            Log.d(TAG,ERROR_GETPEER);
+            Log.d(TAG, ERROR_GETPEER);
             context.error(ERROR_CODE);
         }
 
@@ -914,11 +931,32 @@ public class UltracreationSocket extends CordovaPlugin {
 
         }
 
-        public void recvFrom(int size, CallbackContext context) {
-//            this.recvFromCallback = context;
-//            this.readSize = size;
+        public void recvfrom(int size, CallbackContext context) throws Exception {
+            if (type == SocketType.UDP && udpSocket != null) {
+                ByteBuffer buf = ByteBuffer.allocate(size);
+                byte[] data = new byte[1];
+                int bytesRead = 0;
 
+                InetSocketAddress address = (InetSocketAddress)udpSocket.receive(buf);
+                buf.flip();
+                bytesRead = buf.remaining();
+                data = new byte[bytesRead];
+                buf.get(data, 0, data.length);
+                System.out.println("buf.remaining() = " + bytesRead);
 
+                String result = address.getHostName() + ":" + address.getPort();
+                System.out.println("接收：" + new String(data));
+
+                JSONObject object = new JSONObject();
+                object.put("InetAddress",result);
+                object.put("ByteBase64", Base64.encodeToString(data,Base64.DEFAULT));
+
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, object);
+                context.sendPluginResult(pluginResult);
+
+            } else {
+                context.error(ERROR_CODE);
+            }
         }
 
 
@@ -958,13 +996,17 @@ public class UltracreationSocket extends CordovaPlugin {
             SocketChannel sc = null;
             if ((sc = tcpServer.accept()) != null) {
                 System.out.println("客户端机子的地址是 "
-                        + sc.socket().getRemoteSocketAddress()
+                        + sc.socket().getInetAddress()
                         + "  客户端机机子的端口号是 "
-                        + sc.socket().getLocalPort());
+                        + sc.socket().getPort());
                 SocketData sd = new SocketData(sc);
                 int id = UltracreationSocket.this.addSocket(sd);
                 sd.setSocketId(id);
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, id);
+                String address = sc.socket().getInetAddress().getHostAddress() + ":" + sc.socket().getPort();
+                JSONObject result = new JSONObject();
+                result.put("SocketId", id);
+                result.put("InetAddress", address);
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, result);
                 context.sendPluginResult(pluginResult);
             }
 

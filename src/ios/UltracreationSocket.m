@@ -60,12 +60,13 @@
 
 -(int)getMaxFd:(NSArray*)array
 {
+    NSLog(@"getMaxFd");
     int maxFd = 0;
     for(int i = 0; i < [array count]; i++)
     {
         NSNumber* temp = [array objectAtIndex:i];
         
-        if(maxFd < [temp intValue])
+        if(temp  != nil && maxFd < [temp intValue])
         {
             maxFd = [temp intValue];
         }
@@ -226,13 +227,23 @@ int set_nonblock(int socket)
         NSNumber* socketId = [command argumentAtIndex:0];
         
         struct sockaddr_in sockaddr;
-        int ret = accept([socketId intValue], (struct sockaddr *)&sockaddr, (socklen_t*)&sockaddr);
+        socklen_t len = sizeof(sockaddr);
+        int ret = accept([socketId intValue], (struct sockaddr *)&sockaddr,&len);
         if(ret < 0)
         {
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
         }else
         {
-            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsInt:ret] callbackId:command.callbackId];
+            NSMutableDictionary* result = [[NSMutableDictionary alloc] initWithCapacity:2];
+            
+            NSString* address = [NSString stringWithUTF8String: inet_ntoa(sockaddr.sin_addr)];
+            NSString* port = [NSString stringWithFormat:@"%d", ntohs(sockaddr.sin_port)];
+            NSString* inetAddress = [address stringByAppendingFormat:@"%@%@",@":",port];
+            
+            [result setValue:[NSNumber numberWithInt:ret] forKey:@"SocketId"];
+            [result setValue:inetAddress forKey:@"InetAddress"];
+            
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result] callbackId:command.callbackId];
         }
     }];
 }
@@ -246,7 +257,7 @@ int set_nonblock(int socket)
         int time = [[command argumentAtIndex:1] intValue];
         
         int maxFd = [self getMaxFd:selectSet];
-        
+        NSLog(@"maxFd = %d",maxFd);
         fd_set readfds;
         FD_ZERO(&readfds); //clear the socket set
         
@@ -317,14 +328,55 @@ int set_nonblock(int socket)
         int bufferSize = [[command argumentAtIndex:1] intValue];
         
         char buffer[bufferSize];
-        ssize_t ret = recv(socketId , buffer, sizeof(buffer)-1, 0);
+        int ret = recv(socketId , buffer, sizeof(buffer)-1, 0);
+        NSLog(@"recv = %d socket = %d",ret,socketId);
         if(ret < 0)
         {
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+            NSLog(@"errno = %d",errno);
         }
         else
         {
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArrayBuffer:[NSData dataWithBytes:buffer length:strlen(buffer)]] callbackId:command.callbackId];
+        }
+    }];
+}
+
+
+
+- (void)recvfrom:(CDVInvokedUrlCommand*)command
+{
+    [self.commandDelegate runInBackground:^{
+        int socketId = [[command argumentAtIndex:0] intValue];
+        int bufferSize = [[command argumentAtIndex:1] intValue];
+        
+        struct sockaddr_in client;
+        socklen_t len = sizeof(client);
+        char buffer[bufferSize];
+        
+        int ret = recvfrom(socketId , buffer, sizeof(buffer)-1, 0,(struct sockaddr *)&client,&len);
+        NSLog(@"recvfrom = %d socket = %d",ret,socketId);
+        if(ret < 0)
+        {
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+            NSLog(@"errno = %d",errno);
+        }
+        else
+        {
+            NSMutableDictionary* result = [[NSMutableDictionary alloc] initWithCapacity:2];
+            
+            NSData* data = [NSData dataWithBytes:buffer length:strlen(buffer)];
+            NSString* base64Str = [data base64EncodedStringWithOptions:0];
+            
+            
+            NSString* address = [NSString stringWithUTF8String: inet_ntoa(client.sin_addr)];
+            NSString* port = [NSString stringWithFormat:@"%d", ntohs(client.sin_port)];
+            NSString* inetAddress = [address stringByAppendingFormat:@"%@%@",@":",port];
+            
+            [result setValue:base64Str forKey:@"ByteBase64"];
+            [result setValue:inetAddress forKey:@"InetAddress"];
+            
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result] callbackId:command.callbackId];
         }
     }];
 }
@@ -384,8 +436,9 @@ int set_nonblock(int socket)
     [self.commandDelegate runInBackground:^{
         int socketId = [[command argumentAtIndex:0] intValue];
         int enable = [[command argumentAtIndex:1] intValue];
-        NSLog(@"setbroadcast = %d",enable);
+        
         int ret = setsockopt(socketId, SOL_SOCKET, SO_BROADCAST, (const char*)&enable, sizeof(enable));
+        NSLog(@"setbroadcast ret = %d",ret);
         if(ret < 0)
         {
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];

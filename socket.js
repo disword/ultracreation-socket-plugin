@@ -47,13 +47,14 @@ exports.listen = function(socketId, backlog, callback) {
 };
 
 exports.accept = function(socketId, callback) {
-    var win = callback && function(acceptedSocketId) {
+    var win = callback && function(result) {
         exports.errno = 0;
-        callback(acceptedSocketId);
+        callback(result);
     };
     var fail = callback && function(code) {
         exports.errno = code;
-        callback(-1);
+        var empty = {socketId:-1};
+        callback(empty);
     };
     exec(win, fail, 'Socket', 'accept', [socketId]);
 };
@@ -211,30 +212,18 @@ exports.sendTo = function(socketId, data, info, callback) {
     exec(win, fail, 'Socket', 'sendTo', [{ socketId: socketId, info: info}, data]);
 };
 
-exports.recvFrom = function(socketId, bufferSize, callback) {
-    if (typeof bufferSize == 'function') {
-        callback = bufferSize;
-        bufferSize = 0;
-    }
-    bufferSize = bufferSize || 0;
-    var win = callback && function(arg) {
+exports.recvfrom = function(socketId, bufferSize, callback) {
+    var win = callback && function(result) {
         exports.errno = 0;
-        var recvFromInfo = {
-            resultCode: arg.resultCode || 1,
-            data: stringToBytes(arg.data),
-            address: arg.address,
-            port: arg.port
-        };
-        callback(recvFromInfo);
-};
+        callback(result);
+    };
 
-
-    var fail = callback && function() {
-        exports.errno = -1;
+    var fail = callback && function(code) {
+        exports.errno = code;
         var readInfo = {
-            resultCode: -1
+            ByteBase64: ""
         };
         callback(readInfo);
     };
-    exec(win, fail, 'Socket', 'recvFrom', [socketId, bufferSize]);
+    exec(win, fail, 'Socket', 'recvfrom', [socketId, bufferSize]);
 };

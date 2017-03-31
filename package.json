@@ -1,6 +1,6 @@
 {
   "name": "ultracreation-socket-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "This plugin provides client and server sockets for Android and iOS.",
   "cordova": {
     "id": "ultracreation-socket-plugin",

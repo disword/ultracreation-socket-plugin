@@ -53,7 +53,7 @@ exports.accept = function(socketId, callback) {
     };
     var fail = callback && function(code) {
         exports.errno = code;
-        var empty = {socketId:-1};
+        var empty = {SocketId:-1};
         callback(empty);
     };
     exec(win, fail, 'Socket', 'accept', [socketId]);

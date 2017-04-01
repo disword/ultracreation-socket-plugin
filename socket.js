@@ -188,8 +188,8 @@ exports.connect = function(socketId, info, callback) {
         exports.errno = 0;
         callback(0);
     };
-    var fail = callback && function() {
-        exports.errno = -1;
+    var fail = callback && function(code) {
+        exports.errno = code;
         callback(-1);
     };
     exec(win, fail, 'Socket', 'connect', [socketId, info]);

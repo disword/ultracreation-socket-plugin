@@ -17,6 +17,7 @@
 
 @interface UltracreationSocket () {
     NSMutableArray* _sockets;
+    NSMutableArray* _ServerSockets;
 }
 @end
 
@@ -28,6 +29,7 @@
 - (void)pluginInitialize
 {
     _sockets = [NSMutableArray arrayWithCapacity:5];
+    _ServerSockets = [NSMutableArray arrayWithCapacity:5];
 }
 
 - (void)destroyAllSockets
@@ -36,19 +38,33 @@
     for (int i = 0; i < _sockets.count; i++)
     {
         NSNumber * socketFd = [_sockets objectAtIndex:i];
+        NSLog(@"de close = %d",[socketFd intValue]);
+//        shutdown([socketFd intValue], 2);
         close([socketFd intValue]);
     }
     [_sockets removeAllObjects];
+    for (int i = 0; i < _ServerSockets.count; i++)
+    {
+        NSNumber * socketFd = [_ServerSockets objectAtIndex:i];
+        NSLog(@"server close = %d",[socketFd intValue]);
+//        shutdown([socketFd intValue], 2);
+        close([socketFd intValue]);
+    }
+    [_ServerSockets removeAllObjects];
 }
 
 - (void)onReset
 {
-    [self destroyAllSockets];
+    [self.commandDelegate runInBackground:^{
+        [self destroyAllSockets];
+    }];
 }
 
 - (void)dispose
 {
-    [self destroyAllSockets];
+    [self.commandDelegate runInBackground:^{
+        [self destroyAllSockets];
+    }];
     [super dispose];
 }
 
@@ -123,7 +139,11 @@ int set_nonblock(int socket)
                 }else{
                     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsInt:socketFd] callbackId:command.callbackId];
                 }
-                [_sockets addObject:[NSNumber numberWithInt:socketFd]];
+                if([socketMode isEqualToString:@"tcp_server"])
+                    [_ServerSockets addObject:[NSNumber numberWithInt:socketFd]];
+                else
+                    [_sockets addObject:[NSNumber numberWithInt:socketFd]];
+                NSLog(@"create = %d",socketFd);
             }
         }
         
@@ -277,6 +297,8 @@ int set_nonblock(int socket)
             
             [result setValue:[NSNumber numberWithInt:ret] forKey:@"SocketId"];
             [result setValue:inetAddress forKey:@"InetAddress"];
+            
+            [_sockets addObject:[NSNumber numberWithInt:ret]];
             
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result] callbackId:command.callbackId];
         }

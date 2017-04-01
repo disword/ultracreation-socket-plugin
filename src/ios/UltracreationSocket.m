@@ -1,7 +1,3 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 #import "UltracreationSocket.h"
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -91,11 +87,17 @@ int set_nonblock(int socket)
     return 1;
 }
 
+-(void)resetError
+{
+    errno = 0;
+}
+
 - (void)socket:(CDVInvokedUrlCommand*)command
 {
     NSLog(@"socket");
     
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         NSLog(@"runInBackground");
         NSString* socketMode = [command argumentAtIndex:0];
         
@@ -119,9 +121,9 @@ int set_nonblock(int socket)
                 {
                     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
                 }else{
-                    [_sockets addObject:[NSNumber numberWithInt:socketFd]];
                     [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsInt:socketFd] callbackId:command.callbackId];
                 }
+                [_sockets addObject:[NSNumber numberWithInt:socketFd]];
             }
         }
         
@@ -133,6 +135,7 @@ int set_nonblock(int socket)
 - (void)bind:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         NSString* info = [command argumentAtIndex:1];
         NSArray *array = [info componentsSeparatedByString:@":"];
         
@@ -169,7 +172,7 @@ int set_nonblock(int socket)
 - (void)listen:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
-        
+        [self resetError];
         NSNumber* socketId = [command argumentAtIndex:0];
         NSNumber* backlog = [command argumentAtIndex:1];
         
@@ -188,10 +191,11 @@ int set_nonblock(int socket)
 - (void)connect:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         NSString* info = [command argumentAtIndex:1];
         NSArray *array = [info componentsSeparatedByString:@":"];
         
-        NSNumber* socketId = [command argumentAtIndex:0];
+        int socketId = [[command argumentAtIndex:0] intValue];
         NSString* address = [array objectAtIndex:0];
         int port = [[array objectAtIndex:1] intValue];
         
@@ -210,10 +214,40 @@ int set_nonblock(int socket)
         }
         sockaddr.sin_port = htons(port);
         
-        int ret = connect([socketId intValue], (struct sockaddr *)&sockaddr, sizeof(sockaddr));
-        if(ret < 0)
-        {
-            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+        int ret = connect(socketId, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
+        
+        if (ret < 0) {
+            if (errno == EINPROGRESS) {
+                [self resetError];
+                struct timeval tv;
+                tv.tv_sec = 6;
+                tv.tv_usec = 0;
+                fd_set read_set, write_set;
+                FD_ZERO(&read_set);
+                FD_SET(socketId, &read_set);
+                write_set=read_set;
+                socklen_t lon;
+                int valopt = 0;
+                
+                if ((ret = select(socketId+1, &read_set, &write_set, NULL, &tv)) > 0) {
+                    lon = sizeof(int);
+                    getsockopt(socketId, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon);
+                    if (valopt) {
+                        NSLog(@"Error in connection() %d - %s\n", valopt, strerror(valopt));
+                        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+                    }else
+                    {
+                        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsInt:ret] callbackId:command.callbackId];
+                    }
+                }
+                else {
+                    NSLog(@"Timeout or error() %d - %s\n", valopt, strerror(valopt));
+                    [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+                }
+            } 
+            else { 
+                [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+            } 
         }else
         {
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsInt:ret] callbackId:command.callbackId];
@@ -224,6 +258,7 @@ int set_nonblock(int socket)
 - (void)accept:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         NSNumber* socketId = [command argumentAtIndex:0];
         
         struct sockaddr_in sockaddr;
@@ -253,6 +288,7 @@ int set_nonblock(int socket)
 - (void)select:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         NSArray* selectSet = [command argumentAtIndex:0];
         int time = [[command argumentAtIndex:1] intValue];
         
@@ -304,6 +340,7 @@ int set_nonblock(int socket)
 - (void)send:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         NSData* data = [command argumentAtIndex:1];
         
@@ -324,6 +361,7 @@ int set_nonblock(int socket)
 - (void)recv:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         int bufferSize = [[command argumentAtIndex:1] intValue];
         
@@ -347,6 +385,7 @@ int set_nonblock(int socket)
 - (void)recvfrom:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         int bufferSize = [[command argumentAtIndex:1] intValue];
         
@@ -384,6 +423,7 @@ int set_nonblock(int socket)
 - (void)close:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         
         int ret = close(socketId);
@@ -400,7 +440,7 @@ int set_nonblock(int socket)
 - (void)shutdown:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
-        
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         int how = [[command argumentAtIndex:1] intValue];
         int ret = shutdown(socketId, how);
@@ -417,6 +457,7 @@ int set_nonblock(int socket)
 - (void)setreuseraddr:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         int enable = [[command argumentAtIndex:1] intValue];
         NSLog(@"setreuseraddr = %d",enable);
@@ -434,6 +475,7 @@ int set_nonblock(int socket)
 - (void)setbroadcast:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         int enable = [[command argumentAtIndex:1] intValue];
         
@@ -452,6 +494,7 @@ int set_nonblock(int socket)
 - (void)getsockname:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         
         struct sockaddr_in sin;
@@ -475,6 +518,7 @@ int set_nonblock(int socket)
 - (void)getpeername:(CDVInvokedUrlCommand*)command
 {
     [self.commandDelegate runInBackground:^{
+        [self resetError];
         int socketId = [[command argumentAtIndex:0] intValue];
         
         struct sockaddr_in peeraddr;

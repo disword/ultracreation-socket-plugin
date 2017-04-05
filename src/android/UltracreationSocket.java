@@ -662,7 +662,7 @@ public class UltracreationSocket extends CordovaPlugin {
             }
             init();
             if (type == SocketType.TCP) {
-                tcpSocket.connect(new InetSocketAddress(address, port));
+                tcpSocket.socket().connect(new InetSocketAddress(address, port),6000);
             } else {
                 udpSocket.connect(new InetSocketAddress(address, port));
             }

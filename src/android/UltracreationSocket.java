@@ -949,7 +949,7 @@ public class UltracreationSocket extends CordovaPlugin {
 
                 JSONObject object = new JSONObject();
                 object.put("InetAddress",result);
-                object.put("ByteBase64", Base64.encodeToString(data,Base64.DEFAULT));
+                object.put("ByteBase64", Base64.encodeToString(data,Base64.NO_WRAP));
 
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, object);
                 context.sendPluginResult(pluginResult);

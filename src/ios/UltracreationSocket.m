@@ -397,7 +397,7 @@ int set_nonblock(int socket)
         }
         else
         {
-            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArrayBuffer:[NSData dataWithBytes:buffer length:strlen(buffer)]] callbackId:command.callbackId];
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArrayBuffer:[NSData dataWithBytes:buffer length:ret]] callbackId:command.callbackId];
         }
     }];
 }
@@ -426,7 +426,7 @@ int set_nonblock(int socket)
         {
             NSMutableDictionary* result = [[NSMutableDictionary alloc] initWithCapacity:2];
             
-            NSData* data = [NSData dataWithBytes:buffer length:strlen(buffer)];
+            NSData* data = [NSData dataWithBytes:buffer length:ret];
             NSString* base64Str = [data base64EncodedStringWithOptions:0];
             
             

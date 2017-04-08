@@ -196,7 +196,7 @@ exports.connect = function(socketId, info, callback) {
 };
 
 
-exports.sendTo = function(socketId, data, info, callback) {
+exports.sendto = function(socketId, data, info, callback) {
     var win = callback && function(bytesWritten) {
         exports.errno = 0;
         callback(bytesWritten);
@@ -205,7 +205,7 @@ exports.sendTo = function(socketId, data, info, callback) {
         exports.errno = code;
         callback(-1);
     };
-    exec(win, fail, 'Socket', 'sendTo', [socketId, info, data]);
+    exec(win, fail, 'Socket', 'sendto', [socketId, info, data]);
 };
 
 exports.recvfrom = function(socketId, bufferSize, callback) {

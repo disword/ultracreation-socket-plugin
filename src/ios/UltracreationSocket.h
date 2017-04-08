@@ -16,6 +16,7 @@
 - (void)select:(CDVInvokedUrlCommand*)command;
 
 - (void)send:(CDVInvokedUrlCommand*)command;
+- (void)sendto:(CDVInvokedUrlCommand*)command;
 - (void)recv:(CDVInvokedUrlCommand*)command;
 
 - (void)close:(CDVInvokedUrlCommand*)command;

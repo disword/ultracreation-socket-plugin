@@ -378,6 +378,46 @@ int set_nonblock(int socket)
     }];
 }
 
+- (void)sendto:(CDVInvokedUrlCommand*)command
+{
+    [self.commandDelegate runInBackground:^{
+        [self resetError];
+        int socketId = [[command argumentAtIndex:0] intValue];
+        NSData* data = [command argumentAtIndex:2];
+        
+        NSString* info = [command argumentAtIndex:1];
+        NSArray *array = [info componentsSeparatedByString:@":"];
+        
+        NSString* address = [array objectAtIndex:0];
+        int port = [[array objectAtIndex:1] intValue];
+        
+        
+        struct sockaddr_in sockaddr;
+        sockaddr.sin_family = AF_INET;
+        if ([address isEqualToString:@"0.0.0.0"])
+            sockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+        else{
+            int rtn = inet_pton(AF_INET, [address UTF8String], &sockaddr.sin_addr.s_addr);
+            if(rtn < 0)
+            {
+                [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+                return;
+            }
+        }
+        sockaddr.sin_port = htons(port);
+        
+        const char* buffer = [data bytes];
+        int ret = sendto(socketId, buffer, strlen(buffer), 0,(struct sockaddr *)&sockaddr, sizeof(sockaddr));
+        if(ret < 0)
+        {
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+        }else
+        {
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsInt:ret] callbackId:command.callbackId];
+        }
+    }];
+}
+
 
 
 - (void)recv:(CDVInvokedUrlCommand*)command

@@ -296,7 +296,7 @@ int set_nonblock(int socket)
             NSString* inetAddress = [address stringByAppendingFormat:@"%@%@",@":",port];
             
             [result setValue:[NSNumber numberWithInt:ret] forKey:@"SocketId"];
-            [result setValue:inetAddress forKey:@"InetAddress"];
+            [result setValue:inetAddress forKey:@"SocketAddr"];
             
             [_sockets addObject:[NSNumber numberWithInt:ret]];
             
@@ -435,7 +435,7 @@ int set_nonblock(int socket)
             NSString* inetAddress = [address stringByAppendingFormat:@"%@%@",@":",port];
             
             [result setValue:base64Str forKey:@"ByteBase64"];
-            [result setValue:inetAddress forKey:@"InetAddress"];
+            [result setValue:inetAddress forKey:@"SocketAddr"];
             
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:result] callbackId:command.callbackId];
         }

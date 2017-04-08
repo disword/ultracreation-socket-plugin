@@ -948,7 +948,7 @@ public class UltracreationSocket extends CordovaPlugin {
                 System.out.println("接收：" + new String(data));
 
                 JSONObject object = new JSONObject();
-                object.put("InetAddress",result);
+                object.put("SocketAddr",result);
                 object.put("ByteBase64", Base64.encodeToString(data,Base64.NO_WRAP));
 
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, object);
@@ -1005,7 +1005,7 @@ public class UltracreationSocket extends CordovaPlugin {
                 String address = sc.socket().getInetAddress().getHostAddress() + ":" + sc.socket().getPort();
                 JSONObject result = new JSONObject();
                 result.put("SocketId", id);
-                result.put("InetAddress", address);
+                result.put("SocketAddr", address);
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, result);
                 context.sendPluginResult(pluginResult);
             }

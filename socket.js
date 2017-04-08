@@ -197,19 +197,15 @@ exports.connect = function(socketId, info, callback) {
 
 
 exports.sendTo = function(socketId, data, info, callback) {
-    var type = Object.prototype.toString.call(data).slice(8, -1);
-    if (type != 'ArrayBuffer') {
-        throw new Error('chrome.socket.write - data is not an ArrayBuffer! (Got: ' + type + ')');
-    }
     var win = callback && function(bytesWritten) {
         exports.errno = 0;
         callback(bytesWritten);
     };
-    var fail = callback && function() {
-        exports.errno = -1;
+    var fail = callback && function(code) {
+        exports.errno = code;
         callback(-1);
     };
-    exec(win, fail, 'Socket', 'sendTo', [{ socketId: socketId, info: info}, data]);
+    exec(win, fail, 'Socket', 'sendTo', [socketId, info, data]);
 };
 
 exports.recvfrom = function(socketId, bufferSize, callback) {

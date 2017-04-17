@@ -13,6 +13,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.net.NetworkInterface;
 import java.net.Inet4Address;
 import java.net.Inet6Address;

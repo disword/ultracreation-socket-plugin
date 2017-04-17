@@ -11,7 +11,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <fcntl.h>
-
+#include <ifaddrs.h>
+#include <net/if.h>
 
 #pragma mark UltracreationSocket interface
 

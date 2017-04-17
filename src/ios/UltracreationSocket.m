@@ -638,7 +638,6 @@ int set_nonblock(int socket)
         
         // Free memory
         freeifaddrs(interfaces);
-        NSLog(@"Free memory");
     }];
 }
 

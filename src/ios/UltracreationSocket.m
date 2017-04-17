@@ -626,7 +626,8 @@ int set_nonblock(int socket)
                     //printf("fa = %s\n",temp_addr->ifa_name);
                     char* info = inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr);
                     NSString* addr = [NSString stringWithUTF8String:info];
-                    [result addObject:addr];
+                    if(![addr isEqualToString:@"127.0.0.1"])
+                        [result addObject:addr];
                     
                 }
                 

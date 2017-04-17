@@ -27,5 +27,5 @@
 
 - (void)getsockname:(CDVInvokedUrlCommand*)command;
 - (void)getpeername:(CDVInvokedUrlCommand*)command;
-
+- (void)getifaddrs:(CDVInvokedUrlCommand*)command;
 @end

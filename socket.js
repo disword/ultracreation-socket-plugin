@@ -223,3 +223,16 @@ exports.recvfrom = function(socketId, bufferSize, callback) {
     };
     exec(win, fail, 'Socket', 'recvfrom', [socketId, bufferSize]);
 };
+
+exports.getifaddrs = function(callback) {
+    var win = callback && function(result) {
+        exports.errno = 0;
+        callback(result);
+    };
+    var fail = callback && function(code) {
+        exports.errno = code;
+        var empty = [];
+        callback(empty);
+    };
+    exec(win, fail, 'Socket', 'getifaddrs', []);
+};

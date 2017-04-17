@@ -13,6 +13,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.NetworkInterface;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -26,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Enumeration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -95,10 +99,81 @@ public class UltracreationSocket extends CordovaPlugin {
             getsockname(args, callbackContext);
         } else if ("getpeername".equals(action)) {
             getpeername(args, callbackContext);
+        } else if ("getifaddrs".equals(action)) {
+            getifaddrs(callbackContext);
         } else {
             return false;
         }
         return true;
+    }
+	
+    private void getifaddrs(final CallbackContext context) throws JSONException {
+        cordova.getThreadPool().submit(new Runnable() {
+            @Override
+            public void run() {
+                List<InetAddress> localInetAddresses = getLocalInetAddresses(true, false, false);
+                JSONArray array = new JSONArray();
+                for (int i = 0; i < localInetAddresses.size(); i++) {
+                    array.put(localInetAddresses.get(i).getHostAddress());
+                }
+                context.sendPluginResult(new PluginResult(PluginResult.Status.OK, array));
+            }
+        });
+        
+    }
+
+    private  List<InetAddress> getLocalInetAddresses(boolean getIPv4, boolean getIPv6, boolean sortIPv4BeforeIPv6) {
+        List<InetAddress> arrayIPAddress = new ArrayList<InetAddress>();
+        int lastIPv4Index = 0;
+
+        // Get all network interfaces
+        Enumeration<NetworkInterface> networkInterfaces;
+        try {
+            networkInterfaces = NetworkInterface.getNetworkInterfaces();
+        } catch (SocketException e) {
+            return arrayIPAddress;
+        }
+
+        if (networkInterfaces == null)
+            return arrayIPAddress;
+
+        // For every suitable network interface, get all IP addresses
+        while (networkInterfaces.hasMoreElements()) {
+            NetworkInterface card = networkInterfaces.nextElement();
+
+            try {
+                // skip devices, not suitable to search gateways for
+                if (card.isLoopback() || card.isPointToPoint() ||
+                        card.isVirtual() || !card.isUp())
+                    continue;
+            } catch (SocketException e) {
+                continue;
+            }
+
+            Enumeration<InetAddress> addresses = card.getInetAddresses();
+
+            if (addresses == null)
+                continue;
+
+            while (addresses.hasMoreElements()) {
+                InetAddress inetAddress = addresses.nextElement();
+                int index = arrayIPAddress.size();
+
+                if (!getIPv4 || !getIPv6) {
+                    if (getIPv4 && !Inet4Address.class.isInstance(inetAddress))
+                        continue;
+
+                    if (getIPv6 && !Inet6Address.class.isInstance(inetAddress))
+                        continue;
+                } else if (sortIPv4BeforeIPv6 && Inet4Address.class.isInstance(inetAddress)) {
+                    index = lastIPv4Index++;
+                }
+
+                arrayIPAddress.add(index, inetAddress);
+            }
+        }
+
+        return arrayIPAddress;
     }
 
     private void getpeername(CordovaArgs args, final CallbackContext context) throws JSONException {

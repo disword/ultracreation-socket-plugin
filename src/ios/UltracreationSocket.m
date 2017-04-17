@@ -602,5 +602,42 @@ int set_nonblock(int socket)
     }];
 }
 
+- (void)getifaddrs:(CDVInvokedUrlCommand*)command
+{
+    [self.commandDelegate runInBackground:^{
+        struct ifaddrs *interfaces = NULL;
+        struct ifaddrs *temp_addr = NULL;
+        int ret;
+        // retrieve the current interfaces - returns 0 on success
+        ret = getifaddrs(&interfaces);
+
+        
+        if(ret < 0)
+        {
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsInt:errno] callbackId:command.callbackId];
+        }
+        else
+        {
+            NSMutableArray* result = [NSMutableArray arrayWithCapacity:2];
+            temp_addr = interfaces;
+            while(temp_addr != NULL) {
+                if(temp_addr->ifa_addr->sa_family == AF_INET) {
+                    //printf("fa = %s\n",temp_addr->ifa_name);
+                    char* info = inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr);
+                    NSString* addr = [NSString stringWithUTF8String:info];
+                    [result addObject:addr];
+                    
+                }
+                
+                temp_addr = temp_addr->ifa_next;
+            }
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:result] callbackId:command.callbackId];
+        }
+        
+        // Free memory
+        freeifaddrs(interfaces);
+        NSLog(@"Free memory");
+    }];
+}
 
 @end
